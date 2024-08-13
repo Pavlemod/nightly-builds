@@ -46,7 +46,7 @@ jobs:
 
       - name: Clone kernel sources
         run: |
-          git clone https://github.com/N1kroks/linux-7125.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1
+          git clone https://github.com/N1kroks/linux-7125.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
       - name: Choose any SM7125 device in pmbootstrap to build kernel
         run: |
