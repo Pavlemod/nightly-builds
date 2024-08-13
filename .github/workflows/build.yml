@@ -71,7 +71,7 @@ jobs:
           pmbootstrap install --password 147147
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-curtana.img
-          cp /tmp/postmarketOS-export/xiaomi-curtana.img out/rootfs-xiaomi-curtana.img
+          cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-curtana.img
           sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-curtana.img
@@ -91,7 +91,7 @@ jobs:
           pmbootstrap install --password 147147
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-joyeuse.img
-          cp /tmp/postmarketOS-export/xiaomi-joyeuse.img out/rootfs-xiaomi-joyeuse.img
+          cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-joyeuse.img
           sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-joyeuse.img
