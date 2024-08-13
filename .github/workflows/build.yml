@@ -1,0 +1,106 @@
+name: Build images
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  KERNEL_BRANCH: 6.10.3
+
+jobs:
+  build-image:
+    strategy:
+      matrix:
+        version: ["default"]
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out build configurations
+        uses: actions/checkout@v4
+
+      - name: Substitute placeholders in configs
+        run: |
+          find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
+
+      - name: Install pmbootstrap from git
+        run: |
+          git clone --depth=1 https://gitlab.com/postmarketOS/pmbootstrap/
+          mkdir -p ~/.local/bin
+          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          pmbootstrap --version
+
+      - name: Set up pmaports
+        run: |
+          echo -e '\n\n' | pmbootstrap init || true
+          cd ~/.local/var/pmbootstrap/cache_git/pmaports
+          git remote add sm7125 https://github.com/N1kroks/pmaports.git
+          DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
+          git fetch sm7125 $DEFAULT_BRANCH
+          git reset --hard sm7125/$DEFAULT_BRANCH
+
+      - name: Check kernel branch
+        if: matrix.version == 'default'
+        run: |
+          DEFAULT_BRANCH=$(curl -s  https://api.github.com/repos/N1kroks/linux-7125 | jq -r '.default_branch')
+          echo "Default branch is $DEFAULT_BRANCH"
+          echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+
+      - name: Clone kernel sources
+        run: |
+          git clone https://github.com/N1kroks/linux-7125.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1
+
+      - name: Choose any SM7125 device in pmbootstrap to build kernel
+        run: |
+          cp xiaomi-curtana.cfg ~/.config/pmbootstrap.cfg
+
+      - name: Compile kernel with envkernel
+        run: |
+          cd linux
+          shopt -s expand_aliases
+          source ../pmbootstrap/helpers/envkernel.sh
+          make defconfig sm7125.config
+          make -j$(nproc)
+          pmbootstrap build --envkernel linux-postmarketos-qcom-sm7125
+
+      - name: Create artifact directory
+        run: |
+          mkdir out
+
+      - name: Build xiaomi-curtana
+        run: |
+          cp xiaomi-curtana.cfg ~/.config/pmbootstrap.cfg
+          pmbootstrap install --password 147147
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-curtana.img
+          cp /tmp/postmarketOS-export/xiaomi-curtana.img out/rootfs-xiaomi-curtana.img
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-curtana.img
+          xz -T0 -9e -v out/rootfs-xiaomi-curtana.img
+          echo -e "n\nn\ny\n" | pmbootstrap zap
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaomi-curtana-${{ env.KERNEL_BRANCH }}
+          path: out/*-curtana.img*
+          retention-days: 7
+      
+      - name: Build xiaomi-joyeuse
+        run: |
+          cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap.cfg
+          pmbootstrap install --password 147147
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-joyeuse.img
+          cp /tmp/postmarketOS-export/xiaomi-joyeuse.img out/rootfs-xiaomi-joyeuse.img
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-joyeuse.img
+          xz -T0 -9e -v out/rootfs-xiaomi-joyeuse.img
+          echo -e "n\nn\ny\n" | pmbootstrap zap
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
+          path: out/*-joyeuse.img*
+          retention-days: 7
