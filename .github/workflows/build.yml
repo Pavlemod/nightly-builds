@@ -104,3 +104,23 @@ jobs:
           name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
           path: out/*-joyeuse.img*
           retention-days: 7
+      
+      - name: Build xiaomi-gram
+        run: |
+          cp xiaomi-gram.cfg ~/.config/pmbootstrap.cfg
+          pmbootstrap install --password 147147
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-gram.img
+          cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-gram.img
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          pmbootstrap export
+          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-gram.img
+          xz -T0 -9e -v out/rootfs-xiaomi-gram.img
+          echo -e "n\nn\ny\n" | pmbootstrap zap
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaomi-gram-${{ env.KERNEL_BRANCH }}
+          path: out/*-gram.img*
+          retention-days: 7
