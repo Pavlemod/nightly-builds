@@ -23,7 +23,7 @@ jobs:
 
       - name: Install pmbootstrap from git
         run: |
-          git clone --depth=1 --branch 2.3.1 https://gitlab.com/postmarketOS/pmbootstrap/
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
           ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
@@ -50,7 +50,7 @@ jobs:
 
       - name: Choose any SM7125 device in pmbootstrap to build kernel
         run: |
-          cp xiaomi-curtana.cfg ~/.config/pmbootstrap.cfg
+          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
 
       - name: Compile kernel with envkernel
         run: |
@@ -67,12 +67,12 @@ jobs:
 
       - name: Build xiaomi-curtana
         run: |
-          cp xiaomi-curtana.cfg ~/.config/pmbootstrap.cfg
+          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-curtana.img
           cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-curtana.img
-          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap_v3.cfg
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-curtana.img
           xz -T0 -9e -v out/rootfs-xiaomi-curtana.img
@@ -84,15 +84,15 @@ jobs:
           name: xiaomi-curtana-${{ env.KERNEL_BRANCH }}
           path: out/*-curtana.img*
           retention-days: 7
-      
+
       - name: Build xiaomi-joyeuse
         run: |
-          cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap.cfg
+          cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-joyeuse.img
           cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-joyeuse.img
-          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap_v3.cfg
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-joyeuse.img
           xz -T0 -9e -v out/rootfs-xiaomi-joyeuse.img
@@ -104,15 +104,15 @@ jobs:
           name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
           path: out/*-joyeuse.img*
           retention-days: 7
-      
+
       - name: Build xiaomi-gram
         run: |
-          cp xiaomi-gram.cfg ~/.config/pmbootstrap.cfg
+          cp xiaomi-gram.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-gram.img
           cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-gram.img
-          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap.cfg
+          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap_v3.cfg
           pmbootstrap export
           cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-gram.img
           xz -T0 -9e -v out/rootfs-xiaomi-gram.img
