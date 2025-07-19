@@ -3,7 +3,7 @@ on:
   push:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 5' # Run every friday at midnight
+    - cron: '0 0 * * 5' # Every Friday at midnight
 
 env:
   KERNEL_BRANCH: 6.12.1
@@ -15,44 +15,41 @@ jobs:
         version: ["default"]
 
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out build configurations
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Substitute placeholders in configs
         run: |
           find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
-      - name: Install pmbootstrap from git
+      - name: Install pmbootstrap and dependencies
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
-          mkdir -p ~/.local/bin
-          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          sudo apt-get update
+          sudo apt-get install -y python3-pip python3-setuptools python3-wheel jq libffi-dev libssl-dev
+          pip3 install --upgrade --user pmbootstrap
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           pmbootstrap --version
 
-      - name: Set up pmaports
+      - name: Prepare pmbootstrap config
         run: |
-          echo -e '\n\n' | pmbootstrap init || true
-          cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
-          DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
-          git fetch sm7125 $DEFAULT_BRANCH
-          git reset --hard sm7125/$DEFAULT_BRANCH
+          mkdir -p ~/.config
+          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
+          pmbootstrap init --no-interactive --configfile ~/.config/pmbootstrap_v3.cfg
 
-      - name: Check kernel branch
+      - name: Pull latest pmaports and repositories
+        run: pmbootstrap pull
+
+      - name: Fetch kernel default branch dynamically (override env)
         if: matrix.version == 'default'
         run: |
-          DEFAULT_BRANCH=$(curl -s  https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
-          echo "Default branch is $DEFAULT_BRANCH"
+          DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
           echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
 
       - name: Clone kernel sources
         run: |
-          git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
-
-      - name: Choose any SM7125 device in pmbootstrap to build kernel
-        run: |
-          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
+          git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 linux
 
       - name: Compile kernel with envkernel
         run: |
@@ -64,10 +61,9 @@ jobs:
           pmbootstrap build --envkernel linux-postmarketos-qcom-sm7125
 
       - name: Create artifact directory
-        run: |
-          mkdir out
+        run: mkdir -p out
 
-      - name: Build xiaomi-curtana
+      - name: Build Xiaomi Curtana images
         run: |
           cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
@@ -80,14 +76,14 @@ jobs:
           xz -T0 -9e -v out/rootfs-xiaomi-curtana.img
           echo -e "n\nn\ny\n" | pmbootstrap zap
 
-      - name: Upload artifacts
+      - name: Upload Xiaomi Curtana artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiaomi-curtana-${{ env.KERNEL_BRANCH }}
           path: out/*-curtana.img*
           retention-days: 7
 
-      - name: Build xiaomi-joyeuse
+      - name: Build Xiaomi Joyeuse images
         run: |
           cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
@@ -100,9 +96,10 @@ jobs:
           xz -T0 -9e -v out/rootfs-xiaomi-joyeuse.img
           echo -e "n\nn\ny\n" | pmbootstrap zap
 
-      - name: Upload artifacts
+      - name: Upload Xiaomi Joyeuse artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
           path: out/*-joyeuse.img*
           retention-days: 7
+          
