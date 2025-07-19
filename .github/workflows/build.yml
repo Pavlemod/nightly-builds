@@ -1,27 +1,25 @@
 name: Build images
+
 on:
   push:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 5' # Run every friday at midnight
+    - cron: '0 0 * * 5'  # Every Friday at midnight
 
 env:
   KERNEL_BRANCH: 6.12.1
 
 jobs:
   build-image:
-    strategy:
-      matrix:
-        version: ["default"]
-
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out build configurations
         uses: actions/checkout@v4
 
       - name: Substitute placeholders in configs
         run: |
-          find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
+          find . -type f -name "*.cfg" -exec sed -i "s|HOME|$HOME|;s|NPROC|$(nproc)|" {} +
 
       - name: Install pmbootstrap from git
         run: |
@@ -39,18 +37,18 @@ jobs:
           git fetch sm7125 $DEFAULT_BRANCH
           git reset --hard sm7125/$DEFAULT_BRANCH
 
-      - name: Check kernel branch
-        if: matrix.version == 'default'
+      - name: Check kernel branch (optional override)
         run: |
-          DEFAULT_BRANCH=$(curl -s  https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
-          echo "Default branch is $DEFAULT_BRANCH"
-          echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+          if [ "${{ env.KERNEL_BRANCH }}" = "auto" ]; then
+            DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
+            echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+          fi
 
       - name: Clone kernel sources
         run: |
           git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
-      - name: Choose any SM7125 device in pmbootstrap to build kernel
+      - name: Prepare config for curtana
         run: |
           cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
 
@@ -64,10 +62,9 @@ jobs:
           pmbootstrap build --envkernel linux-postmarketos-qcom-sm7125
 
       - name: Create artifact directory
-        run: |
-          mkdir out
+        run: mkdir -p out
 
-      - name: Build xiaomi-curtana
+      - name: Build xiaomi-curtana (tianma + huaxing)
         run: |
           cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
@@ -80,14 +77,14 @@ jobs:
           xz -T0 -9e -v out/rootfs-xiaomi-curtana.img
           echo -e "n\nn\ny\n" | pmbootstrap zap
 
-      - name: Upload artifacts
+      - name: Upload curtana artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiaomi-curtana-${{ env.KERNEL_BRANCH }}
           path: out/*-curtana.img*
           retention-days: 7
 
-      - name: Build xiaomi-joyeuse
+      - name: Build xiaomi-joyeuse (tianma + huaxing)
         run: |
           cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
@@ -100,9 +97,10 @@ jobs:
           xz -T0 -9e -v out/rootfs-xiaomi-joyeuse.img
           echo -e "n\nn\ny\n" | pmbootstrap zap
 
-      - name: Upload artifacts
+      - name: Upload joyeuse artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
           path: out/*-joyeuse.img*
           retention-days: 7
+          
