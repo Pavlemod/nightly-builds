@@ -50,10 +50,9 @@ EOF
 
       - name: Set up pmaports
         run: |
-          echo -e '\n\n' | pmbootstrap pull
-          cd ~/.local/var/pmbootstrap/cache_git/pmaports || git clone https://gitlab.postmarketos.org/postmarketOS/pmaports.git ~/.local/var/pmbootstrap/cache_git/pmaports
+          echo -e '\n\n' | pmbootstrap init || true
           cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git || true
+          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
           DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
           git fetch sm7125 $DEFAULT_BRANCH
           git reset --hard sm7125/$DEFAULT_BRANCH
@@ -61,20 +60,20 @@ EOF
       - name: Pull latest packages (required!)
         run: pmbootstrap pull
 
-      - name: Check kernel branch (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Check kernel branch
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
           echo "Default branch is $DEFAULT_BRANCH"
           echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
 
-      - name: Clone kernel sources (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Clone kernel sources
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
-      - name: Compile kernel with envkernel (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Compile kernel with envkernel
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           cd linux
           shopt -s expand_aliases
@@ -86,7 +85,7 @@ EOF
       - name: Create artifact directory
         run: mkdir -p out
 
-      - name: Build device rootfs and export images
+      - name: Copy device config and build rootfs and boot images
         run: |
           cp xiaomi-${{ matrix.device }}.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
