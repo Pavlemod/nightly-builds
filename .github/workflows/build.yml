@@ -33,40 +33,46 @@ jobs:
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
-          ln -sf "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
 
-      - name: Initialize pmbootstrap and clear caches
+      - name: Initialize pmbootstrap config (if missing)
         run: |
-          echo -e '\n\n' | pmbootstrap init || true
-          pmbootstrap zap || true       # Clear all chroots, caches, repos
-          pmbootstrap pull              # Pull latest packages and ports
+          if [ ! -f ~/.config/pmbootstrap_v3.cfg ]; then
+            echo -e '\n\n' | pmbootstrap init
+          fi
 
-      - name: Set up pmaports
+      - name: Zap pmbootstrap environment (clean)
+        run: pmbootstrap zap
+
+      - name: Set pmbootstrap channel to stable
+        run: pmbootstrap config set channel stable
+
+      - name: Clone and reset pmaports
         run: |
-          cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git || true
-          DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
-          git fetch sm7125 $DEFAULT_BRANCH
-          git reset --hard sm7125/$DEFAULT_BRANCH
+          cd ~/.local/var/pmbootstrap/cache_git
+          rm -rf pmaports
+          git clone https://github.com/sm7125-mainline/pmaports.git
+          cd pmaports
+          git reset --hard origin/master
 
       - name: Pull latest packages (required!)
         run: pmbootstrap pull
 
-      - name: Check kernel branch (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Check kernel branch
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
           echo "Default branch is $DEFAULT_BRANCH"
           echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
 
-      - name: Clone kernel sources (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Clone kernel sources
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
-      - name: Compile kernel with envkernel (only for curtana)
-        if: matrix.device == 'curtana'
+      - name: Compile kernel with envkernel
+        if: matrix.device == 'curtana' # Only once for curtana
         run: |
           cd linux
           shopt -s expand_aliases
@@ -78,7 +84,7 @@ jobs:
       - name: Create artifact directory
         run: mkdir -p out
 
-      - name: Copy device config and build
+      - name: Copy device config and build rootfs and boot
         run: |
           cp xiaomi-${{ matrix.device }}.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
@@ -100,7 +106,3 @@ jobs:
           name: xiaomi-${{ matrix.device }}-${{ env.KERNEL_BRANCH }}
           path: out/*
           retention-days: 7
-
-      - name: Show pmbootstrap logs on failure
-        if: failure()
-        run: cat ~/.local/var/pmbootstrap/log.txt || echo "No log file found"
