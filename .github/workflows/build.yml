@@ -1,8 +1,8 @@
-name: Build Nightly pmOS Images
+name: Nightly Builds
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # every Sunday at 3AM UTC
+    - cron: '0 3 * * 0' # Every Sunday at 3 AM
   workflow_dispatch:
 
 jobs:
@@ -10,64 +10,45 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        device: [xiaomi-curtana, xiaomi-joyeuse]
+        device: [xiaomi-joyeuse, xiaomi-curtana]
+    env:
+      PMOS_FORCE_KEYGEN: 1
 
     steps:
-      - name: Checkout workflow repository
-        uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            abootimg android-sdk-libsparse-utils bc bison build-essential \
-            cpio curl device-tree-compiler flex git libssl-dev make \
-            python3 python3-pip rsync tar unzip wget xz-utils
-
-      - name: Install pmbootstrap
-        run: |
+          sudo apt update
+          sudo apt install -y python3-pip curl git
           pip3 install --user pmbootstrap
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Clone pmaports
+      - name: Clone kernel source
         run: |
-          git clone https://gitlab.com/postmarketOS/pmaports.git ~/.local/var/pmbootstrap/cache_git/pmaports
+          git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch main --depth 1 linux
 
       - name: Init pmbootstrap
         run: |
-          cp "${{ matrix.device }}.cfg" ~/.config/pmbootstrap.cfg
-          pmbootstrap init --no-keygen
+          mkdir -p ~/.config
+          cp configs/${{ matrix.device }}.cfg ~/.config/pmbootstrap.cfg
+          pmbootstrap init --no-keygen --config ~/.config/pmbootstrap.cfg
 
-      - name: Clone kernel (sm7125-mainline)
-        run: |
-          git clone https://github.com/sm7125-mainline/linux.git \
-            --single-branch --branch main --depth 1 ./linux
-          mkdir -p ~/.local/var/pmbootstrap/cache_git/pmaports/device/testing/${{ matrix.device }}
-          cp -r ./linux/* ~/.local/var/pmbootstrap/cache_git/pmaports/device/testing/${{ matrix.device }}/
-
-      - name: Build packages
-        run: |
-          pmbootstrap build linux-${{ matrix.device }}
-          pmbootstrap build device-${{ matrix.device }}
-
-      - name: Install system
+      - name: Build image
         run: |
           pmbootstrap install --device=${{ matrix.device }}
-
-      - name: Create boot image and export
-        run: |
-          pmbootstrap initfs hook_add boot encryption
-          pmbootstrap install --android-recovery-zip
           pmbootstrap export
 
-      - name: Pack ZIP
+      - name: Package output
         run: |
-          mkdir -p output/${{ matrix.device }}
-          cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/export/* output/${{ matrix.device }}/
-          cd output && zip -r ${{ matrix.device }}.zip ${{ matrix.device }}
+          mkdir -p output
+          zip -j output/${{ matrix.device }}.zip ~/.local/var/pmbootstrap/chroot_rootfs_${{ matrix.device }}/boot.img \
+            ~/.local/var/pmbootstrap/chroot_rootfs_${{ matrix.device }}/rootfs.tar.gz
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.device }}-zip
+          name: ${{ matrix.device }}-build
           path: output/${{ matrix.device }}.zip
+          
