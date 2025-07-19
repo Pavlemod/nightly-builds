@@ -36,25 +36,20 @@ jobs:
           ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
 
-      - name: Initialize pmbootstrap config (if missing)
+      - name: Initialize pmbootstrap config (non-interactive)
         run: |
           if [ ! -f ~/.config/pmbootstrap_v3.cfg ]; then
-            echo -e '\n\n' | pmbootstrap init
+            echo "edge" | pmbootstrap init --yes --device xiaomi-${{ matrix.device }} --kernel linux-postmarketos-qcom-sm7125 --ui phosh --systemd no
           fi
 
-      - name: Zap pmbootstrap environment (clean)
-        run: pmbootstrap zap
-
-      - name: Set pmbootstrap channel to stable
-        run: pmbootstrap config set channel stable
-
-      - name: Clone and reset pmaports
+      - name: Set up pmaports
         run: |
-          cd ~/.local/var/pmbootstrap/cache_git
-          rm -rf pmaports
-          git clone https://github.com/sm7125-mainline/pmaports.git
-          cd pmaports
-          git reset --hard origin/master
+          echo -e '\n\n' | pmbootstrap init --yes || true
+          cd ~/.local/var/pmbootstrap/cache_git/pmaports
+          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
+          DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
+          git fetch sm7125 $DEFAULT_BRANCH
+          git reset --hard sm7125/$DEFAULT_BRANCH
 
       - name: Pull latest packages (required!)
         run: pmbootstrap pull
@@ -84,7 +79,7 @@ jobs:
       - name: Create artifact directory
         run: mkdir -p out
 
-      - name: Copy device config and build rootfs and boot
+      - name: Copy device config and build
         run: |
           cp xiaomi-${{ matrix.device }}.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
