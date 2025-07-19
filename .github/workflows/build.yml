@@ -1,106 +1,73 @@
-name: Build images
+name: Build Nightly pmOS Images
 
 on:
-  push:
-  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 5'  # Every Friday at midnight
-
-env:
-  KERNEL_BRANCH: 6.12.1
+    - cron: '0 3 * * 0'  # every Sunday at 3AM UTC
+  workflow_dispatch:
 
 jobs:
-  build-image:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device: [xiaomi-curtana, xiaomi-joyeuse]
 
     steps:
-      - name: Check out build configurations
-        uses: actions/checkout@v4
+      - name: Checkout workflow repository
+        uses: actions/checkout@v3
 
-      - name: Substitute placeholders in configs
+      - name: Install dependencies
         run: |
-          find . -type f -name "*.cfg" -exec sed -i "s|HOME|$HOME|;s|NPROC|$(nproc)|" {} +
+          sudo apt-get update
+          sudo apt-get install -y \
+            abootimg android-sdk-libsparse-utils bc bison build-essential \
+            cpio curl device-tree-compiler flex git libssl-dev make \
+            python3 python3-pip rsync tar unzip wget xz-utils
 
-      - name: Install pmbootstrap from git
+      - name: Install pmbootstrap
         run: |
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
-          mkdir -p ~/.local/bin
-          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
-          pmbootstrap --version
+          pip3 install --user pmbootstrap
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Set up pmaports
+      - name: Clone pmaports
         run: |
-          echo -e '\n\n' | pmbootstrap init || true
-          cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
-          DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
-          git fetch sm7125 $DEFAULT_BRANCH
-          git reset --hard sm7125/$DEFAULT_BRANCH
+          git clone https://gitlab.com/postmarketOS/pmaports.git ~/.local/var/pmbootstrap/cache_git/pmaports
 
-      - name: Check kernel branch (optional override)
+      - name: Init pmbootstrap
         run: |
-          if [ "${{ env.KERNEL_BRANCH }}" = "auto" ]; then
-            DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
-            echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
-          fi
+          cp "${{ matrix.device }}.cfg" ~/.config/pmbootstrap.cfg
+          pmbootstrap init --no-keygen
 
-      - name: Clone kernel sources
+      - name: Clone kernel (sm7125-mainline)
         run: |
-          git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
+          git clone https://github.com/sm7125-mainline/linux.git \
+            --single-branch --branch main --depth 1 ./linux
+          mkdir -p ~/.local/var/pmbootstrap/cache_git/pmaports/device/testing/${{ matrix.device }}
+          cp -r ./linux/* ~/.local/var/pmbootstrap/cache_git/pmaports/device/testing/${{ matrix.device }}/
 
-      - name: Prepare config for curtana
+      - name: Build packages
         run: |
-          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
+          pmbootstrap build linux-${{ matrix.device }}
+          pmbootstrap build device-${{ matrix.device }}
 
-      - name: Compile kernel with envkernel
+      - name: Install system
         run: |
-          cd linux
-          shopt -s expand_aliases
-          source ../pmbootstrap/helpers/envkernel.sh
-          make defconfig sm7125.config
-          make -j$(nproc)
-          pmbootstrap build --envkernel linux-postmarketos-qcom-sm7125
+          pmbootstrap install --device=${{ matrix.device }}
 
-      - name: Create artifact directory
-        run: mkdir -p out
-
-      - name: Build xiaomi-curtana (tianma + huaxing)
+      - name: Create boot image and export
         run: |
-          cp xiaomi-curtana.cfg ~/.config/pmbootstrap_v3.cfg
-          pmbootstrap install --password 147147
+          pmbootstrap initfs hook_add boot encryption
+          pmbootstrap install --android-recovery-zip
           pmbootstrap export
-          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-curtana.img
-          cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-curtana.img
-          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap_v3.cfg
-          pmbootstrap export
-          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-curtana.img
-          xz -T0 -9e -v out/rootfs-xiaomi-curtana.img
-          echo -e "n\nn\ny\n" | pmbootstrap zap
 
-      - name: Upload curtana artifacts
-        uses: actions/upload-artifact@v4
+      - name: Pack ZIP
+        run: |
+          mkdir -p output/${{ matrix.device }}
+          cp ~/.local/var/pmbootstrap/chroot_native/home/pmos/export/* output/${{ matrix.device }}/
+          cd output && zip -r ${{ matrix.device }}.zip ${{ matrix.device }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          name: xiaomi-curtana-${{ env.KERNEL_BRANCH }}
-          path: out/*-curtana.img*
-          retention-days: 7
-
-      - name: Build xiaomi-joyeuse (tianma + huaxing)
-        run: |
-          cp xiaomi-joyeuse.cfg ~/.config/pmbootstrap_v3.cfg
-          pmbootstrap install --password 147147
-          pmbootstrap export
-          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-tianma-joyeuse.img
-          cp /tmp/postmarketOS-export/xiaomi-miatoll.img out/rootfs-xiaomi-joyeuse.img
-          sed -i 's/tianma/huaxing/g' ~/.config/pmbootstrap_v3.cfg
-          pmbootstrap export
-          cp /tmp/postmarketOS-export/boot.img out/boot-xiaomi-huaxing-joyeuse.img
-          xz -T0 -9e -v out/rootfs-xiaomi-joyeuse.img
-          echo -e "n\nn\ny\n" | pmbootstrap zap
-
-      - name: Upload joyeuse artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xiaomi-joyeuse-${{ env.KERNEL_BRANCH }}
-          path: out/*-joyeuse.img*
-          retention-days: 7
-          
+          name: ${{ matrix.device }}-zip
+          path: output/${{ matrix.device }}.zip
