@@ -29,21 +29,23 @@ jobs:
         run: |
           find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
-      - name: Install pmbootstrap and initialize
+      - name: Install pmbootstrap from git
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
           ln -sf "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
+
+      - name: Initialize pmbootstrap and clear caches
+        run: |
           echo -e '\n\n' | pmbootstrap init || true
-          pmbootstrap pull
-          pmbootstrap zap || true
+          pmbootstrap zap || true       # Clear all chroots, caches, repos
+          pmbootstrap pull              # Pull latest packages and ports
 
       - name: Set up pmaports
         run: |
-          echo -e '\n\n' | pmbootstrap init || true
           cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
+          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git || true
           DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
           git fetch sm7125 $DEFAULT_BRANCH
           git reset --hard sm7125/$DEFAULT_BRANCH
@@ -51,20 +53,20 @@ jobs:
       - name: Pull latest packages (required!)
         run: pmbootstrap pull
 
-      - name: Check kernel branch
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Check kernel branch (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
           echo "Default branch is $DEFAULT_BRANCH"
           echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
 
-      - name: Clone kernel sources
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Clone kernel sources (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
-      - name: Compile kernel with envkernel
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Compile kernel with envkernel (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           cd linux
           shopt -s expand_aliases
@@ -99,6 +101,6 @@ jobs:
           path: out/*
           retention-days: 7
 
-      - name: Save pmbootstrap logs on failure
+      - name: Show pmbootstrap logs on failure
         if: failure()
-        run: cat ~/.local/var/pmbootstrap/log.txt
+        run: cat ~/.local/var/pmbootstrap/log.txt || echo "No log file found"
