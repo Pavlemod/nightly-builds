@@ -29,12 +29,13 @@ jobs:
         run: |
           find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
-      - name: Install pmbootstrap and update pmaports
+      - name: Install pmbootstrap and initialize
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
           ln -sf "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
+          echo -e '\n\n' | pmbootstrap init || true
           pmbootstrap pull
           pmbootstrap zap || true
 
@@ -101,4 +102,3 @@ jobs:
       - name: Save pmbootstrap logs on failure
         if: failure()
         run: cat ~/.local/var/pmbootstrap/log.txt
-
