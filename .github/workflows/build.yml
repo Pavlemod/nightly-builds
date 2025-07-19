@@ -36,17 +36,24 @@ jobs:
           ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
 
-      - name: Initialize pmbootstrap config (non-interactive)
+      - name: Create pmbootstrap config file (skip init)
         run: |
-          if [ ! -f ~/.config/pmbootstrap_v3.cfg ]; then
-            echo "edge" | pmbootstrap init --yes --device xiaomi-${{ matrix.device }} --kernel linux-postmarketos-qcom-sm7125 --ui phosh --systemd no
-          fi
+          mkdir -p ~/.config
+          cat > ~/.config/pmbootstrap_v3.cfg <<EOF
+[general]
+channel=edge
+device=xiaomi-${{ matrix.device }}
+kernel=linux-postmarketos-qcom-sm7125
+ui=phosh
+use_systemd=false
+EOF
 
       - name: Set up pmaports
         run: |
-          echo -e '\n\n' | pmbootstrap init --yes || true
+          echo -e '\n\n' | pmbootstrap pull
+          cd ~/.local/var/pmbootstrap/cache_git/pmaports || git clone https://gitlab.postmarketos.org/postmarketOS/pmaports.git ~/.local/var/pmbootstrap/cache_git/pmaports
           cd ~/.local/var/pmbootstrap/cache_git/pmaports
-          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git
+          git remote add sm7125 https://github.com/sm7125-mainline/pmaports.git || true
           DEFAULT_BRANCH=$(git remote show sm7125 | awk '/HEAD branch/ {print $NF}')
           git fetch sm7125 $DEFAULT_BRANCH
           git reset --hard sm7125/$DEFAULT_BRANCH
@@ -54,20 +61,20 @@ jobs:
       - name: Pull latest packages (required!)
         run: pmbootstrap pull
 
-      - name: Check kernel branch
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Check kernel branch (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           DEFAULT_BRANCH=$(curl -s https://api.github.com/repos/sm7125-mainline/linux | jq -r '.default_branch')
           echo "Default branch is $DEFAULT_BRANCH"
           echo "KERNEL_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
 
-      - name: Clone kernel sources
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Clone kernel sources (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           git clone https://github.com/sm7125-mainline/linux.git --single-branch --branch ${{ env.KERNEL_BRANCH }} --depth 1 ./linux
 
-      - name: Compile kernel with envkernel
-        if: matrix.device == 'curtana' # Only once for curtana
+      - name: Compile kernel with envkernel (only for curtana)
+        if: matrix.device == 'curtana'
         run: |
           cd linux
           shopt -s expand_aliases
@@ -79,7 +86,7 @@ jobs:
       - name: Create artifact directory
         run: mkdir -p out
 
-      - name: Copy device config and build
+      - name: Build device rootfs and export images
         run: |
           cp xiaomi-${{ matrix.device }}.cfg ~/.config/pmbootstrap_v3.cfg
           pmbootstrap install --password 147147
