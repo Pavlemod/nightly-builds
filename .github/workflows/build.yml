@@ -95,3 +95,4 @@ jobs:
           name: xiaomi-${{ matrix.device }}-${{ env.KERNEL_BRANCH }}
           path: out/*
           retention-days: 7
+          
