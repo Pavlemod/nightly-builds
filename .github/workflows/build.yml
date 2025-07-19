@@ -29,12 +29,14 @@ jobs:
         run: |
           find . -type f -name "*.cfg" -exec sed -i "s|HOME|$(echo $HOME)|;s|NPROC|$(nproc)|" {} +
 
-      - name: Install pmbootstrap from git
+      - name: Install pmbootstrap and update pmaports
         run: |
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           mkdir -p ~/.local/bin
-          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          ln -sf "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
           pmbootstrap --version
+          pmbootstrap pull
+          pmbootstrap zap || true
 
       - name: Set up pmaports
         run: |
@@ -95,4 +97,8 @@ jobs:
           name: xiaomi-${{ matrix.device }}-${{ env.KERNEL_BRANCH }}
           path: out/*
           retention-days: 7
-          
+
+      - name: Save pmbootstrap logs on failure
+        if: failure()
+        run: cat ~/.local/var/pmbootstrap/log.txt
+
